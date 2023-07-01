@@ -1,8 +1,16 @@
 import argparse
+from pathlib import Path
+
+from PIL import Image
+
 from skyboxengine import *
 import utils
+import json
 import torch
-import time
+import datetime
+import os
+from fastapi import FastAPI, File, Form, UploadFile
+from fastapi.responses import FileResponse
 
 # Decide which device we want to run on
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -10,10 +18,11 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 parser = argparse.ArgumentParser(description='SkyTransfer')
 parser.add_argument('--path', type=str, default='./config/config-my_photo-seaSunSet.json', metavar='str',
                     help='configurations')
+parser.add_argument('--on-server', type=bool, default=False, metavar='bool',
+                    help='path to checkpoints')
 
 
 class SkyFilter:
-
     def __init__(self, params):
         self.ckptdir = params.ckptdir
         self.datadir = params.datadir
@@ -68,8 +77,7 @@ class SkyFilter:
 
         return img_HD
 
-    def run_imgseq(self):
-
+    def run(self, timeNow):
         print('running evaluation...')
         img_names = os.listdir(self.datadir)
         img_HD_prev = None
@@ -90,7 +98,7 @@ class SkyFilter:
                 tempPath += "/"
                 tempPath += img_names[idx][:-4]
                 tempPath += "_out_"
-                tempPath += str(time.time())
+                tempPath += timeNow
                 os.mkdir(tempPath)
                 fpath = os.path.join(tempPath, img_names[idx])
                 # plt.imsave(fpath[:-4] + '_input.jpg', img_HD)
@@ -102,12 +110,117 @@ class SkyFilter:
 
             img_HD_prev = img_HD
 
-    def run(self):
-        self.run_imgseq()
+    def run_server(self, timeNow):
+        print('running evaluation...')
+        img_names = os.listdir(self.datadir)
+        img_HD_prev = None
+        results = []
+
+        for idx in range(len(img_names)):
+            this_dir = os.path.join(self.datadir, img_names[idx])
+            img_HD = cv2.imread(this_dir, cv2.IMREAD_COLOR)
+            img_HD = self.cvtcolor_and_resize(img_HD)
+
+            if img_HD_prev is None:
+                img_HD_prev = img_HD
+
+            syneth, G_pred, skymask = self.synthesize(img_HD, img_HD_prev)
+
+            if self.save_jpgs:
+                tempPath = args.output_dir
+                tempPath += "/"
+                tempPath += img_names[idx][:-4]
+                tempPath += "_out_"
+                tempPath += timeNow
+                os.mkdir(tempPath)
+                fpath = os.path.join(tempPath, img_names[idx])
+                # plt.imsave(fpath[:-4] + '_input.jpg', img_HD)
+                # plt.imsave(fpath[:-4] + 'coarse_skymask.jpg', G_pred)
+                # plt.imsave(fpath[:-4] + 'refined_skymask.jpg', skymask)
+                plt.imsave(fpath[:-4] + '_syneth.jpg', syneth.clip(min=0, max=1))
+
+                # 返回文件路径
+                results.append(fpath[:-4] + '_syneth.jpg')
+
+            print('processing: %d / %d ...' % (idx, len(img_names)))
+
+            img_HD_prev = img_HD
+
+        return results
 
 
 if __name__ == '__main__':
-    config_path = parser.parse_args().path
-    args = utils.parse_config(config_path)
-    sf = SkyFilter(args)
-    sf.run()
+    if parser.parse_args().on_server is False:
+        config_path = parser.parse_args().path
+        args = utils.parse_config(config_path)
+        sf = SkyFilter(args)
+        sf.run(str(datetime.now().strftime("%d-%m-%Y_%I-%M-%S_%p")))
+    else:
+        app = FastAPI()
+
+        @app.post("/api/sky-transfer/")
+        async def create_upload_file(file: UploadFile = File(...), maskId: int = Form(...)):
+            # 搜索文件夹下与maskId匹配的文件
+            mask_files = list(Path("./skybox").glob(f"{maskId}.jpg"))
+
+            if len(mask_files) > 0:
+                mask_name = mask_files[0].name
+            else:
+                return {
+                    "code": "400",
+                    "message": f"No mask image found for maskId={maskId}"
+                }
+
+            # 检查上传的文件后缀名，如果不是jpg则转换成jpg格式
+            if file.filename.endswith(".jpeg") or file.filename.endswith(".png"):
+                image = Image.open(file.file)
+                converted_image = image.convert("RGB")
+                new_filename = file.filename[:file.filename.rfind(".")] + ".jpg"
+                new_file_path = f"./imageinput/{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}/{new_filename}"
+                new_file_dir = Path(new_file_path).parent
+                new_file_dir.mkdir(parents=True, exist_ok=True)
+                converted_image.save(new_file_path)
+            else:
+                new_filename = file.filename
+                new_file_path = f"./imageinput/{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}/{new_filename}"
+                new_file_dir = Path(new_file_path).parent
+                new_file_dir.mkdir(parents=True, exist_ok=True)
+                file.file.seek(0)
+                contents = await file.read()
+                with open(new_file_path, "wb") as f:
+                    f.write(contents)
+
+            # 生成配置字典
+            config = {
+                "net_G": "coord_resnet50",
+                "ckptdir": "./checkpoints_G_coord_resnet50",
+                "datadir": new_file_dir,
+                "skybox": mask_name,
+                "in_size_w": 384,
+                "in_size_h": 384,
+                "out_size_w": 845,
+                "out_size_h": 480,
+                "skybox_center_crop": 0.5,
+                "auto_light_matching": True,
+                "relighting_factor": 0.8,
+                "recoloring_factor": 0.5,
+                "halo_effect": True,
+                "output_dir": "./output",
+                "save_jpgs": True
+            }
+
+            # 生成配置文件名
+            file_name = f"config-{datetime.now().strftime('%d-%m-%Y_%I-%M-%S_%p')}.json"
+
+            # 保存配置文件
+            config_dir = Path("./config")
+            config_dir.mkdir(parents=True, exist_ok=True)
+            with open(config_dir / file_name, 'w') as f:
+                json.dump(config, f)
+
+            # 生成配置文件路径
+            params = utils.parse_config(config_dir / file_name)
+            server = SkyFilter(params)
+            path = server.run_server(str(datetime.now().strftime("%d-%m-%Y_%I-%M-%S_%p")))
+
+            return FileResponse(path)
