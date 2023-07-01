@@ -1,6 +1,7 @@
 import argparse
 from pathlib import Path
 
+import uvicorn
 from PIL import Image
 
 from skyboxengine import *
@@ -224,3 +225,10 @@ if __name__ == '__main__':
             path = server.run_server(str(datetime.datetime.now().strftime("%d-%m-%Y_%I-%M-%S_%p")))
 
             return FileResponse(path)
+
+
+        while True:
+            try:
+                uvicorn.run(app, host="0.0.0.0", port=8000)
+            except Exception as e:
+                print(f"An error occurred: {str(e)}")

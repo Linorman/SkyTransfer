@@ -10,3 +10,4 @@ opencv-contrib-python
 fastapi[all]~=0.99.0
 python-multipart
 Pillow~=9.5.0
+uvicorn~=0.22.0
