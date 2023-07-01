@@ -1,6 +1,5 @@
 from skybox_utils import *
 from cv2.ximgproc import guidedFilter
-import synrain
 import os
 
 
