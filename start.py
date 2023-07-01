@@ -155,11 +155,11 @@ if __name__ == '__main__':
         config_path = parser.parse_args().path
         args = utils.parse_config(config_path)
         sf = SkyFilter(args)
-        sf.run(str(datetime.datetime.now().strftime("%d-%m-%Y_%I-%M-%S_%p")))
+        sf.run(str(datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S-%f')))
     else:
         app = FastAPI()
 
-        @app.post("/api/sky-transfer/")
+        @app.post("/api/sky-transfer")
         async def create_upload_file(file: UploadFile = File(...), maskId: int = Form(...)):
             # 搜索文件夹下与maskId匹配的文件
             mask_files = list(Path("./skybox").glob(f"{maskId}.jpg"))
@@ -171,20 +171,21 @@ if __name__ == '__main__':
                     "code": "400",
                     "message": f"No mask image found for maskId={maskId}"
                 }
-
+            now_time = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S-%f')
             # 检查上传的文件后缀名，如果不是jpg则转换成jpg格式
             if file.filename.endswith(".jpeg") or file.filename.endswith(".png"):
                 image = Image.open(file.file)
                 converted_image = image.convert("RGB")
                 new_filename = file.filename[:file.filename.rfind(".")] + ".jpg"
-                new_file_path = f"./imageinput/{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}/{new_filename}"
+                new_file_path = f"./imageinput/{now_time}/{new_filename}"
                 new_file_dir = Path(new_file_path).parent
                 new_file_dir.mkdir(parents=True, exist_ok=True)
                 converted_image.save(new_file_path)
             else:
                 new_filename = file.filename
-                new_file_path = f"./imageinput/{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}/{new_filename}"
+                new_file_path = f"./imageinput/{now_time}/{new_filename}"
                 new_file_dir = Path(new_file_path).parent
+                new_dir_path = f"./imageinput/{now_time}"
                 new_file_dir.mkdir(parents=True, exist_ok=True)
                 file.file.seek(0)
                 contents = await file.read()
@@ -195,7 +196,7 @@ if __name__ == '__main__':
             config = {
                 "net_G": "coord_resnet50",
                 "ckptdir": "./checkpoints_G_coord_resnet50",
-                "datadir": new_file_dir,
+                "datadir":  new_dir_path,
                 "skybox": mask_name,
                 "in_size_w": 384,
                 "in_size_h": 384,
@@ -211,7 +212,7 @@ if __name__ == '__main__':
             }
 
             # 生成配置文件名
-            file_name = f"config-{datetime.datetime.now().strftime('%d-%m-%Y_%I-%M-%S_%p')}.json"
+            file_name = f"config-{now_time}.json"
 
             # 保存配置文件
             config_dir = Path("./config")
@@ -220,15 +221,15 @@ if __name__ == '__main__':
                 json.dump(config, f)
 
             # 生成配置文件路径
-            params = utils.parse_config(config_dir / file_name)
-            server = SkyFilter(params)
-            path = server.run_server(str(datetime.datetime.now().strftime("%d-%m-%Y_%I-%M-%S_%p")))
+            args = utils.parse_config(config_dir / file_name)
+            server = SkyFilter(args)
+            path = server.run_server(str(now_time))
 
             return FileResponse(path)
 
 
         while True:
             try:
-                uvicorn.run(app, host="0.0.0.0", port=8000)
+                uvicorn.run(app, host="127.0.0.1", port=9889)
             except Exception as e:
                 print(f"An error occurred: {str(e)}")
