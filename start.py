@@ -160,7 +160,7 @@ if __name__ == '__main__':
 
 
         @app.post("/api/sky-transfer")
-        async def create_upload_file(file: UploadFile = File(...), maskId: int = Form(...)):
+        async def create_upload_file(file: UploadFile = File(...), maskId: str = Form(...)):
             # 搜索文件夹下与maskId匹配的文件
             mask_files = list(Path("./skybox").glob(f"{maskId}.jpg"))
 
