@@ -217,7 +217,7 @@ if __name__ == '__main__':
             # 保存配置文件
             config_dir = Path("./config")
             config_dir.mkdir(parents=True, exist_ok=True)
-            with open(config_dir / file_name, 'w') as f:
+            with open(str(config_dir / file_name), 'w') as f:
                 json.dump(config, f)
 
             # 生成配置文件路径
