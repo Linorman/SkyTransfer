@@ -13,6 +13,7 @@ import os
 from fastapi import FastAPI, File, Form, UploadFile
 from fastapi.responses import FileResponse
 
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 # Decide which device we want to run on
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -84,7 +85,6 @@ class SkyFilter:
         img_HD_prev = None
 
         for idx in range(len(img_names)):
-
             this_dir = os.path.join(self.datadir, img_names[idx])
             img_HD = cv2.imread(this_dir, cv2.IMREAD_COLOR)
             img_HD = self.cvtcolor_and_resize(img_HD)
@@ -108,7 +108,6 @@ class SkyFilter:
                 plt.imsave(fpath[:-4] + '_syneth.jpg', syneth.clip(min=0, max=1))
 
             print('processing: %d / %d ...' % (idx, len(img_names)))
-
             img_HD_prev = img_HD
 
     def run_server(self, timeNow):
@@ -128,7 +127,7 @@ class SkyFilter:
             syneth, G_pred, skymask = self.synthesize(img_HD, img_HD_prev)
 
             if self.save_jpgs:
-                tempPath = args.output_dir
+                tempPath = "./output"
                 tempPath += "/"
                 tempPath += img_names[idx][:-4]
                 tempPath += "_out_"
@@ -147,7 +146,7 @@ class SkyFilter:
 
             img_HD_prev = img_HD
 
-        return results
+        return results[0]
 
 
 if __name__ == '__main__':
@@ -158,6 +157,7 @@ if __name__ == '__main__':
         sf.run(str(datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S-%f')))
     else:
         app = FastAPI()
+
 
         @app.post("/api/sky-transfer")
         async def create_upload_file(file: UploadFile = File(...), maskId: int = Form(...)):
@@ -196,7 +196,7 @@ if __name__ == '__main__':
             config = {
                 "net_G": "coord_resnet50",
                 "ckptdir": "./checkpoints_G_coord_resnet50",
-                "datadir":  new_dir_path,
+                "datadir": new_dir_path,
                 "skybox": mask_name,
                 "in_size_w": 384,
                 "in_size_h": 384,
@@ -221,11 +221,10 @@ if __name__ == '__main__':
                 json.dump(config, f)
 
             # 生成配置文件路径
-            args = utils.parse_config(config_dir / file_name)
-            server = SkyFilter(args)
+            params = utils.parse_config(config_dir / file_name)
+            server = SkyFilter(params)
             path = server.run_server(str(now_time))
-
-            return FileResponse(path)
+            return FileResponse(path, media_type="image/jpg")
 
 
         while True:
