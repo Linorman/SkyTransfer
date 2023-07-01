@@ -3,7 +3,7 @@ from cv2.ximgproc import guidedFilter
 import os
 
 
-class SkyBox():
+class SkyBox:
 
     def __init__(self, args):
 
@@ -178,8 +178,5 @@ class SkyBox():
         if self.args.halo_effect:
             # halo effect brings better visual realism but will slow down the speed
             syneth = self.halo(syneth, skybg, skymask)
-
-        if 'rainy' in self.args.skybox:
-            syneth = self.rainmodel.forward(syneth)
 
         return np.clip(syneth, a_min=0, a_max=1)

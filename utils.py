@@ -117,39 +117,3 @@ def clip_01(x):
     x[x > 1.0] = 1.0
     x[x < 0] = 0
     return x
-
-
-def cpt_pxl_cls_acc(pred_idx, target):
-    pred_idx = torch.reshape(pred_idx, [-1])
-    target = torch.reshape(target, [-1])
-    return torch.mean((pred_idx.int() == target.int()).float())
-
-
-def cpt_batch_psnr(img, img_gt, PIXEL_MAX):
-    mse = torch.mean((img - img_gt) ** 2, dim=[1, 2, 3])
-    psnr = 20 * torch.log10(PIXEL_MAX / torch.sqrt(mse))
-    return torch.mean(psnr)
-
-
-def cpt_psnr(img, img_gt, PIXEL_MAX):
-    mse = np.mean((img - img_gt) ** 2)
-    psnr = 20 * np.log10(PIXEL_MAX / np.sqrt(mse))
-    return psnr
-
-
-def cpt_rgb_ssim(img, img_gt):
-    img = clip_01(img)
-    img_gt = clip_01(img_gt)
-    SSIM = 0
-    for i in range(3):
-        tmp = img[:, :, i]
-        tmp_gt = img_gt[:, :, i]
-        ssim = sk_cpt_ssim(tmp, tmp_gt)
-        SSIM = SSIM + ssim
-    return SSIM / 3.0
-
-
-def cpt_ssim(img, img_gt):
-    img = clip_01(img)
-    img_gt = clip_01(img_gt)
-    return sk_cpt_ssim(img, img_gt)

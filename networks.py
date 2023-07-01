@@ -14,6 +14,7 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 PI = math.pi
 
+
 ###############################################################################
 # Helper Functions
 ###############################################################################
@@ -44,7 +45,6 @@ def get_norm_layer(norm_type='instance'):
     return norm_layer
 
 
-
 def init_weights(net, init_type='normal', init_gain=0.02):
     """Initialize network weights.
 
@@ -56,6 +56,7 @@ def init_weights(net, init_type='normal', init_gain=0.02):
     We use 'normal' in the original pix2pix and CycleGAN paper. But xavier and kaiming might
     work better for some applications. Feel free to try yourself.
     """
+
     def init_func(m):  # define the initialization function
         classname = m.__class__.__name__
         if hasattr(m, 'weight') and (classname.find('Conv') != -1 or classname.find('Linear') != -1):
@@ -71,7 +72,8 @@ def init_weights(net, init_type='normal', init_gain=0.02):
                 raise NotImplementedError('initialization method [%s] is not implemented' % init_type)
             if hasattr(m, 'bias') and m.bias is not None:
                 init.constant_(m.bias.data, 0.0)
-        elif classname.find('BatchNorm2d') != -1:  # BatchNorm Layer's weight is not a matrix; only normal distribution applies.
+        elif classname.find(
+                'BatchNorm2d') != -1:  # BatchNorm Layer's weight is not a matrix; only normal distribution applies.
             init.normal_(m.weight.data, 1.0, init_gain)
             init.constant_(m.bias.data, 0.0)
 
@@ -90,13 +92,11 @@ def init_net(net, init_type='normal', init_gain=0.02, gpu_ids=[]):
     Return an initialized network.
     """
     if len(gpu_ids) > 0:
-        assert(torch.cuda.is_available())
+        assert (torch.cuda.is_available())
         net.to(gpu_ids[0])
         net = torch.nn.DataParallel(net, gpu_ids)  # multi-GPUs
     init_weights(net, init_type, init_gain=init_gain)
     return net
-
-
 
 
 def define_G(input_nc, output_nc, ngf, netG, init_type='normal', init_gain=0.02, gpu_ids=[]):
@@ -109,7 +109,6 @@ def define_G(input_nc, output_nc, ngf, netG, init_type='normal', init_gain=0.02,
     else:
         raise NotImplementedError('Generator model name [%s] is not recognized' % netG)
     return init_net(net, init_type, init_gain, gpu_ids)
-
 
 
 class AddCoords(nn.Module):
@@ -132,6 +131,7 @@ class AddCoords(nn.Module):
         ret = torch.cat([input_tensor, yy_channel], dim=1)
 
         return ret
+
 
 class CoordConv2d(nn.Module):
 
@@ -192,10 +192,10 @@ class ResNet50FCN(torch.nn.Module):
         x = self.resnet.relu(x)
         x = self.resnet.maxpool(x)
 
-        x_4 = self.resnet.layer1(x) # 1/4, in=64, out=64
-        x_8 = self.resnet.layer2(x_4) # 1/8, in=64, out=128
-        x_16 = self.resnet.layer3(x_8) # 1/16, in=128, out=256
-        x_32 = self.resnet.layer4(x_16) # 1/32, in=256, out=512
+        x_4 = self.resnet.layer1(x)  # 1/4, in=64, out=64
+        x_8 = self.resnet.layer2(x_4)  # 1/8, in=64, out=128
+        x_16 = self.resnet.layer3(x_8)  # 1/16, in=128, out=256
+        x_32 = self.resnet.layer4(x_16)  # 1/32, in=256, out=512
 
         # FPN layers
         x = self.upsample(self.relu(self.conv_fpn1(x_32)))
@@ -208,4 +208,3 @@ class ResNet50FCN(torch.nn.Module):
         x = self.sigmoid(self.conv_pred_2(x))
 
         return x
-
