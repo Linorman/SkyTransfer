@@ -100,153 +100,33 @@ class PairedDataAugmentation:
         return img1, img2
 
 
-class CVPR2020_ADE20K_DEGF_Dataset(Dataset):
-
-    def __init__(self, root_dir, img_size, is_train=True):
-        self.root_dir = root_dir
-        self.img_size = img_size
-        self.is_train = is_train
-        if is_train:
-            self.img_dirs = glob.glob(os.path.join(self.root_dir, 'images/train', '*.jpg'))
-            self.augm = PairedDataAugmentation(
-                img_size=self.img_size,
-                with_random_hflip=True,
-                with_random_crop=True,
-                with_random_brightness=True,
-                with_random_gamma=True,
-                with_random_saturation=True
-            )
-        else:
-            self.img_dirs = glob.glob(os.path.join(self.root_dir, 'images/val', '*.jpg'))
-            self.augm = PairedDataAugmentation(
-                img_size=self.img_size
-            )
-
-    def __len__(self):
-        return len(self.img_dirs)
-
-    def __getitem__(self, idx):
-        if torch.is_tensor(idx):
-            idx = idx.tolist()
-
-        img_A = cv2.imread(self.img_dirs[idx], cv2.IMREAD_COLOR)
-        img_A = cv2.cvtColor(img_A, cv2.COLOR_BGR2RGB)
-
-        p = self.img_dirs[idx].replace('images', 'density_estimation+guided_filter').replace('.jpg', '.png')
-        img_B = cv2.imread(p, cv2.IMREAD_COLOR)
-        img_B = cv2.cvtColor(img_B, cv2.COLOR_BGR2RGB)
-
-        img_A, img_B = self.augm.transform(img_A, img_B)
-
-        data = {'A': img_A, 'B': img_B}
-
-        return data
-
-
-class CVPR2020_ADE20K_GF_Dataset(Dataset):
-
-    def __init__(self, root_dir, img_size, is_train=True):
-        self.root_dir = root_dir
-        self.img_size = img_size
-        self.is_train = is_train
-        if is_train:
-            self.img_dirs = glob.glob(os.path.join(self.root_dir, 'images/train', '*.jpg'))
-            self.augm = PairedDataAugmentation(
-                img_size=self.img_size,
-                with_random_hflip=True,
-                with_random_crop=True,
-                with_random_brightness=True,
-                with_random_gamma=True,
-                with_random_saturation=True
-            )
-        else:
-            self.img_dirs = glob.glob(os.path.join(self.root_dir, 'images/val', '*.jpg'))
-            self.augm = PairedDataAugmentation(
-                img_size=self.img_size
-            )
-
-    def __len__(self):
-        return len(self.img_dirs)
-
-    def __getitem__(self, idx):
-        if torch.is_tensor(idx):
-            idx = idx.tolist()
-
-        img_A = cv2.imread(self.img_dirs[idx], cv2.IMREAD_COLOR)
-        img_A = cv2.cvtColor(img_A, cv2.COLOR_BGR2RGB)
-
-        p = self.img_dirs[idx].replace('images', 'guided_filter').replace('.jpg', '.png')
-        img_B = cv2.imread(p, cv2.IMREAD_COLOR)
-        img_B = cv2.cvtColor(img_B, cv2.COLOR_BGR2RGB)
-
-        img_A, img_B = self.augm.transform(img_A, img_B)
-
-        data = {'A': img_A, 'B': img_B}
-
-        return data
-
-
-def get_loaders(args):
-
-    if args.dataset == 'cvprw2020-ade20K-defg':
-        training_set = CVPR2020_ADE20K_DEGF_Dataset(
-            root_dir=r'./datasets/cvprw2020_sky_seg', img_size=args.in_size, is_train=True)
-        val_set = CVPR2020_ADE20K_DEGF_Dataset(
-            root_dir=r'./datasets/cvprw2020_sky_seg', img_size=args.in_size, is_train=False)
-    elif args.dataset == 'cvprw2020-ade20K-fg':
-        training_set = CVPR2020_ADE20K_GF_Dataset(
-            root_dir=r'./datasets/cvprw2020_sky_seg', img_size=args.in_size, is_train=True)
-        val_set = CVPR2020_ADE20K_GF_Dataset(
-            root_dir=r'./datasets/cvprw2020_sky_seg', img_size=args.in_size, is_train=False)
-    else:
-        raise NotImplementedError(
-            'Wrong dataset name %s (choose one from [maps, flowers, facades])'
-            % args.dataset)
-
-    datasets = {'train': training_set, 'val': val_set}
-    dataloaders = {x: DataLoader(datasets[x], batch_size=args.batch_size,
-                                 shuffle=True, num_workers=4)
-                   for x in ['train', 'val']}
-
-    return dataloaders
-
-
-def make_numpy_grid(tensor_data):
-    tensor_data = tensor_data.detach()
-    vis = utils.make_grid(tensor_data)
-    vis = np.array(vis.cpu()).transpose((1,2,0))
-    if vis.shape[2] == 1:
-        vis = np.stack([vis, vis, vis], axis=-1)
-    return vis
-
-
 class Struct:
     def __init__(self, **entries):
         self.__dict__.update(entries)
 
-def parse_config(path_to_json=r'./config.json'):
 
+def parse_config(path_to_json=r'./config.json'):
     with open(path_to_json) as f:
-      data = json.load(f)
+        data = json.load(f)
     args = Struct(**data)
 
     return args
 
 
 def clip_01(x):
-    x[x>1.0] = 1.0
-    x[x<0] = 0
+    x[x > 1.0] = 1.0
+    x[x < 0] = 0
     return x
 
 
 def cpt_pxl_cls_acc(pred_idx, target):
     pred_idx = torch.reshape(pred_idx, [-1])
     target = torch.reshape(target, [-1])
-    return torch.mean((pred_idx.int()==target.int()).float())
+    return torch.mean((pred_idx.int() == target.int()).float())
 
 
 def cpt_batch_psnr(img, img_gt, PIXEL_MAX):
-    mse = torch.mean((img - img_gt) ** 2, dim=[1,2,3])
+    mse = torch.mean((img - img_gt) ** 2, dim=[1, 2, 3])
     psnr = 20 * torch.log10(PIXEL_MAX / torch.sqrt(mse))
     return torch.mean(psnr)
 
@@ -273,4 +153,3 @@ def cpt_ssim(img, img_gt):
     img = clip_01(img)
     img_gt = clip_01(img_gt)
     return sk_cpt_ssim(img, img_gt)
-
