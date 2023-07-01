@@ -48,7 +48,7 @@ Here is the example of the `config` file:
 ``` 
 `WARNING`: The `skybox` is the style image you want to transfer to the content image. You have better not change the name of it.
 
-#### New Mode
+### New Mode ( in the branch `beta`)
 Now you can change the app mode to `Server` mode.
 In this mode, you can send http request to the server and get the result image.
 ``` shell
